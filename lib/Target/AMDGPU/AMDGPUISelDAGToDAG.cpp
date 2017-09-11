@@ -160,8 +160,8 @@ private:
   bool SelectFlatOffset(SDValue Addr, SDValue &VAddr,
                         SDValue &Offset, SDValue &SLC) const;
 
-  bool SelectSMRDOffset(SDValue ByteOffsetNode, SDValue &Offset,
-                        bool &Imm) const;
+  bool SelectSMRDOffset(SDValue ByteOffsetNode, bool AllowNonConst,
+                        SDValue &Offset, bool &Imm) const;
   bool SelectSMRD(SDValue Addr, SDValue &SBase, SDValue &Offset,
                   bool &Imm) const;
   bool SelectSMRDImm(SDValue Addr, SDValue &SBase, SDValue &Offset) const;
@@ -1370,20 +1370,25 @@ bool AMDGPUDAGToDAGISel::SelectFlatAtomicSigned(SDValue Addr,
   return SelectFlatOffset<true>(Addr, VAddr, Offset, SLC);
 }
 
-bool AMDGPUDAGToDAGISel::SelectSMRDOffset(SDValue ByteOffsetNode,
+bool AMDGPUDAGToDAGISel::SelectSMRDOffset(SDValue ByteOffsetNode, bool AllowNonConst,
                                           SDValue &Offset, bool &Imm) const {
 
   // FIXME: Handle non-constant offsets.
   ConstantSDNode *C = dyn_cast<ConstantSDNode>(ByteOffsetNode);
-  if (!C)
-    return false;
+  if (!C) {
+    Offset = ByteOffsetNode;
+    Imm = false;
+    return AllowNonConst;
+  }
 
   SDLoc SL(ByteOffsetNode);
   AMDGPUSubtarget::Generation Gen = Subtarget->getGeneration();
   int64_t ByteOffset = C->getSExtValue();
+  
+  bool Aligned = AMDGPU::getSMRDAligned(*Subtarget, ByteOffset);
   int64_t EncodedOffset = AMDGPU::getSMRDEncodedOffset(*Subtarget, ByteOffset);
 
-  if (AMDGPU::isLegalSMRDImmOffset(*Subtarget, ByteOffset)) {
+  if (Aligned && AMDGPU::isLegalSMRDImmOffset(*Subtarget, ByteOffset)) {
     Offset = CurDAG->getTargetConstant(EncodedOffset, SL, MVT::i32);
     Imm = true;
     return true;
@@ -1392,7 +1397,8 @@ bool AMDGPUDAGToDAGISel::SelectSMRDOffset(SDValue ByteOffsetNode,
   if (!isUInt<32>(EncodedOffset) || !isUInt<32>(ByteOffset))
     return false;
 
-  if (Gen == AMDGPUSubtarget::SEA_ISLANDS && isUInt<32>(EncodedOffset)) {
+  if (Gen == AMDGPUSubtarget::SEA_ISLANDS &&
+      Aligned && isUInt<32>(EncodedOffset)) {
     // 32-bit Immediates are supported on Sea Islands.
     Offset = CurDAG->getTargetConstant(EncodedOffset, SL, MVT::i32);
   } else {
@@ -1411,7 +1417,7 @@ bool AMDGPUDAGToDAGISel::SelectSMRD(SDValue Addr, SDValue &SBase,
     SDValue N0 = Addr.getOperand(0);
     SDValue N1 = Addr.getOperand(1);
 
-    if (SelectSMRDOffset(N1, Offset, Imm)) {
+    if (SelectSMRDOffset(N1, false, Offset, Imm)) {
       SBase = N0;
       return true;
     }
@@ -1451,7 +1457,7 @@ bool AMDGPUDAGToDAGISel::SelectSMRDSgpr(SDValue Addr, SDValue &SBase,
 bool AMDGPUDAGToDAGISel::SelectSMRDBufferImm(SDValue Addr,
                                              SDValue &Offset) const {
   bool Imm;
-  return SelectSMRDOffset(Addr, Offset, Imm) && Imm;
+  return SelectSMRDOffset(Addr, true, Offset, Imm) && Imm;
 }
 
 bool AMDGPUDAGToDAGISel::SelectSMRDBufferImm32(SDValue Addr,
@@ -1460,7 +1466,7 @@ bool AMDGPUDAGToDAGISel::SelectSMRDBufferImm32(SDValue Addr,
     return false;
 
   bool Imm;
-  if (!SelectSMRDOffset(Addr, Offset, Imm))
+  if (!SelectSMRDOffset(Addr, true, Offset, Imm))
     return false;
 
   return !Imm && isa<ConstantSDNode>(Offset);
@@ -1469,7 +1475,7 @@ bool AMDGPUDAGToDAGISel::SelectSMRDBufferImm32(SDValue Addr,
 bool AMDGPUDAGToDAGISel::SelectSMRDBufferSgpr(SDValue Addr,
                                               SDValue &Offset) const {
   bool Imm;
-  return SelectSMRDOffset(Addr, Offset, Imm) && !Imm &&
+  return SelectSMRDOffset(Addr, true, Offset, Imm) && !Imm &&
          !isa<ConstantSDNode>(Offset);
 }
 

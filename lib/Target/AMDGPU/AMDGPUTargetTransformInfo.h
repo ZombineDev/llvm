@@ -164,6 +164,7 @@ public:
                            const Function *Callee) const;
 
   unsigned getInliningThresholdMultiplier() { return 9; }
+
 };
 
 } // end namespace llvm

@@ -801,6 +801,12 @@ bool isUniformMMO(const MachineMemOperand *MMO) {
   return I && I->getMetadata("amdgpu.uniform");
 }
 
+bool getSMRDAligned(const MCSubtargetInfo &ST, int64_t ByteOffset) {
+  if (isGCN3Encoding(ST))
+    return true;
+  return ByteOffset % 4 == 0;
+}
+
 int64_t getSMRDEncodedOffset(const MCSubtargetInfo &ST, int64_t ByteOffset) {
   if (isGCN3Encoding(ST))
     return ByteOffset;

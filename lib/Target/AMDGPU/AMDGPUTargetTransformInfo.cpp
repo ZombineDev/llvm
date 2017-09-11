@@ -587,3 +587,4 @@ bool AMDGPUTTIImpl::areInlineCompatible(const Function *Caller,
   FeatureBitset RealCalleeBits = CalleeBits & ~InlineFeatureIgnoreList;
   return ((RealCallerBits & RealCalleeBits) == RealCalleeBits);
 }
+
