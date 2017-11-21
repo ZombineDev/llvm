@@ -482,9 +482,7 @@ void RegisterCoalescer::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<AAResultsWrapperPass>();
   AU.addRequired<LiveIntervals>();
-  // Temporarily removed as a workaround for a problem where an incorrect live
-  // interval causes an assert in MachineScheduler.
-  //AU.addPreserved<LiveIntervals>();
+  AU.addPreserved<LiveIntervals>();
   AU.addPreserved<SlotIndexes>();
   AU.addRequired<MachineLoopInfo>();
   AU.addPreserved<MachineLoopInfo>();
