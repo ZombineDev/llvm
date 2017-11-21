@@ -2132,9 +2132,6 @@ public:
   /// Returns false if any conflicts were impossible to resolve.
   bool mapValues(JoinVals &Other);
 
-  /// Return whether there are any unresolved conflicts.
-  bool hasUnresolvedConflicts();
-
   /// Try to resolve conflicts that require all values to be mapped.
   /// Returns false if any conflicts were impossible to resolve.
   bool resolveConflicts(JoinVals &Other);
@@ -2587,15 +2584,6 @@ bool JoinVals::usesLanes(const MachineInstr &MI, unsigned Reg, unsigned SubIdx,
   return false;
 }
 
-bool JoinVals::hasUnresolvedConflicts() {
-  for (unsigned i = 0, e = LR.getNumValNums(); i != e; ++i) {
-    Val &V = Vals[i];
-    if (V.Resolution == CR_Unresolved)
-      return true;
-  }
-  return false;
-}
-
 bool JoinVals::resolveConflicts(JoinVals &Other) {
   for (unsigned i = 0, e = LR.getNumValNums(); i != e; ++i) {
     Val &V = Vals[i];
@@ -3007,12 +2995,6 @@ bool RegisterCoalescer::joinVirtRegs(CoalescerPair &CP) {
   // First compute NewVNInfo and the simple value mappings.
   // Detect impossible conflicts early.
   if (!LHSVals.mapValues(RHSVals) || !RHSVals.mapValues(LHSVals))
-    return false;
-
-  // Workaround for a bug where a subrange ends up with an unresolved conflict.
-  // Needs a proper fix.
-  if ((RHS.hasSubRanges() || LHS.hasSubRanges())
-      && (RHSVals.hasUnresolvedConflicts() || LHSVals.hasUnresolvedConflicts()))
     return false;
 
   // Some conflicts can only be resolved after all values have been mapped.
